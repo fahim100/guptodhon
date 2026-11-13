@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>গুপ্তধন</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Galada&family=Hind+Siliguri:wght@400;500;600;700&family=Tiro+Bangla&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/level.css" />
+</head>
+<body>
+  <div id="sea"></div>
+  <svg id="map" aria-label="বাংলাদেশের মানচিত্র"></svg>
+  <div id="vignette"></div>
+
+  <!-- উপরের HUD -->
+  <header id="hud">
+    <div class="brand">
+      <h1>গুপ্তধন</h1>
+      <span>বাংলার হারানো রাজকোষের খোঁজে</span>
+    </div>
+    <div class="progress" title="সংগ্রহ করা রত্নখণ্ড">
+      <div id="gems"></div>
+      <div id="gem-count">রত্নখণ্ড ০/৮</div>
+    </div>
+    <div class="hud-actions">
+      <button class="icon-btn" data-open-settings title="শব্দ ও সেটিংস">🔊</button>
+      <button id="btn-story" class="icon-btn" title="কাহিনি">📜</button>
+      <button id="btn-reset" class="icon-btn" title="নতুন করে শুরু">↺</button>
+    </div>
+  </header>
+
+  <div id="tooltip" role="status"></div>
+
+  <!-- স্থানের তথ্য প্যানেল -->
+  <aside id="panel" aria-hidden="true">
+    <button class="panel-close" aria-label="বন্ধ করো">✕</button>
+    <div class="panel-badge"><span id="p-order">১</span></div>
+    <div class="panel-era" id="p-era"></div>
+    <h2 id="p-name"></h2>
+    <div class="panel-loc"><span>📍</span><span id="p-district"></span></div>
+    <div class="panel-diff"><span>কাঠিন্য</span><span id="p-diff"></span></div>
+    <div class="panel-rule"></div>
+    <p id="p-desc"></p>
+    <div class="quest">
+      <div class="quest-title">🗝 তোমার অভিযান</div>
+      <p id="p-quest"></p>
+    </div>
+    <div id="p-status"></div>
+    <div class="panel-actions">
+      <button id="btn-play" class="btn-primary">অভিযান শুরু করো</button>
+      <button id="btn-demo-win" class="btn-ghost">ডেমো: লেভেল জিতে দেখো</button>
+    </div>
+  </aside>
+
+  <!-- শুরুর কাহিনি -->
+  <div id="intro" class="modal">
+    <div class="scroll">
+      <div class="scroll-rod top"></div>
+      <div class="scroll-body">
+        <div class="seal">ধন</div>
+        <h2>গুপ্তধন</h2>
+        <p>বহু শতাব্দী আগে বাংলার এক রাজকোষ শত্রুর হাত থেকে বাঁচাতে কয়েক ভাগে ভাগ করা হয়েছিল। ভাগগুলো লুকিয়ে রাখা হয় দেশের নানা ঐতিহাসিক স্থানে।</p>
+        <p>প্রতিটা স্থানে আছে একটা <b>রত্নখণ্ড</b> আর পরের গন্তব্যের সূত্র। সাতটি রত্নখণ্ড জোগাড় করতে পারলেই খুলবে শেষ দরজা, <b>পাহাড়পুরের গোপন কক্ষ</b>।</p>
+        <p class="sign">অভিযাত্রী, তুমি কি প্রস্তুত?</p>
+        <button id="btn-start" class="btn-primary big">অভিযান শুরু</button>
+      </div>
+      <div class="scroll-rod bottom"></div>
+    </div>
+  </div>
+
+  <!-- লেভেল -->
+  <section id="level" aria-hidden="true">
+    <canvas id="level-canvas"></canvas>
+
+    <div class="lv-top">
+      <button id="lv-back" class="lv-btn">← ম্যাপ</button>
+      <div class="lv-title"><b id="lv-name"></b><span id="lv-era"></span></div>
+      <div id="lv-custom" class="lv-custom"></div>
+      <div class="lv-stats">
+        <span title="খোঁড়া বাকি">⛏ <b id="lv-digs">—</b></span>
+        <span title="মুঘল মুদ্রা">🪙 <b id="lv-coins">০/৩</b></span>
+        <span title="সময়">⏱ <b id="lv-time">০:০০</b></span>
+      </div>
+      <button class="lv-btn lv-icon" data-open-settings title="শব্দ ও সেটিংস">⚙</button>
+    </div>
+
+    <div id="lv-titlecard">
+      <div class="tc-chapter"></div>
+      <div class="tc-name"></div>
+      <div class="tc-rule"></div>
+      <div class="tc-era"></div>
+    </div>
+
+    <div id="lv-dpad" aria-label="চলাফেরা">
+      <button data-dir="up" aria-label="উপরে">▲</button>
+      <button data-dir="left" aria-label="বামে">◀</button>
+      <button data-dir="right" aria-label="ডানে">▶</button>
+      <button data-dir="down" aria-label="নিচে">▼</button>
+    </div>
+    <button id="lv-act" class="lv-act">💬</button>
+
+    <div id="lv-objectives" class="lv-card">
+      <button id="lv-obj-toggle" class="lv-card-title">🗝 লক্ষ্য <span class="chev">▾</span></button>
+      <ol id="lv-obj-list"></ol>
+      <div id="lv-clue"></div>
+    </div>
+
+    <div class="lv-bottom">
+      <div id="lv-inventory"></div>
+      <div class="lv-actions">
+        <div id="lv-compass" class="off" title="গুপ্তধনের কম্পাস">
+          <div class="dial-face"><div class="needle"></div></div>
+          <span id="lv-heat">কম্পাস নেই</span>
+        </div>
+        <button id="lv-dig" class="lv-dig" disabled>⛏<span>খোঁড়ো</span></button>
+      </div>
+    </div>
+
+    <div id="lv-dialog" role="dialog">
+      <div id="lv-dlg-face"></div>
+      <div class="lv-dlg-body">
+        <div id="lv-dlg-name"></div>
+        <div id="lv-dlg-text"></div>
+        <div id="lv-dlg-choices"></div>
+      </div>
+      <div id="lv-dlg-more">▼</div>
+    </div>
+
+    <div id="lv-toast"></div>
+    <div id="lv-modal" class="modal"><div id="lv-modal-card" class="lv-modal-card"></div></div>
+  </section>
+
+  <!-- শব্দ ও সেটিংস -->
+  <div id="settings" class="modal">
+    <div class="settings-card">
+      <h3>🔊 শব্দ ও সেটিংস</h3>
+      <label class="set-row"><span>🎵 সুর (বাঁশি, তানপুরা, তবলা)</span><input type="range" id="set-music" min="0" max="1" step="0.05" /></label>
+      <label class="set-row"><span>🔔 শব্দ-ইফেক্ট ও পরিবেশ</span><input type="range" id="set-sfx" min="0" max="1" step="0.05" /></label>
+      <label class="set-row toggle"><span>🗣 চরিত্রের কণ্ঠ</span><input type="checkbox" id="set-voice" /><i></i></label>
+      <p class="set-note" id="set-voice-note"></p>
+      <label class="set-row toggle"><span>🔇 সব শব্দ বন্ধ <small>(M)</small></span><input type="checkbox" id="set-mute" /><i></i></label>
+      <div class="set-keys">
+        <b>নিয়ন্ত্রণ</b>
+        <span><kbd>↑↓←→</kbd>/<kbd>WASD</kbd> হাঁটা</span>
+        <span><kbd>Shift</kbd> চেপে দৌড়</span>
+        <span><kbd>Space</kbd> কথা বলা / খোঁড়া</span>
+        <span><kbd>F</kbd> খোঁড়া</span>
+        <span><kbd>১-৪</kbd> সংলাপে উত্তর বাছাই</span>
+        <span>ক্লিক/ট্যাপ করেও হাঁটা যায়; দূরে গেলে নিজে দৌড়ায়</span>
+      </div>
+      <button class="btn-primary" id="set-close">ঠিক আছে</button>
+    </div>
+  </div>
+
+  <div id="wipe"></div>
+  <div id="toast"></div>
+  <canvas id="fx"></canvas>
+
+  <footer id="credit">মানচিত্র: geoBoundaries (BBS/OCHA, CC BY 3.0 IGO) · নদী: Natural Earth</footer>
+
+  <script src="js/vendor/d3.min.js"></script>
+  <script src="data/bd-map.js"></script>
+  <script src="data/bd-rivers.js"></script>
+  <script src="data/neighbors.js"></script>
+  <script src="js/sites.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/worldmap.js"></script>
+  <script src="js/level/art.js"></script>
+  <script src="js/level/engine.js"></script>
+  <script src="js/levels/lalbagh.js"></script>
+  <script src="js/levels/panam.js"></script>
+  <script src="js/levels/mainamati.js"></script>
+  <script src="js/levels/shatgombuj.js"></script>
+  <script src="js/levels/sundarban.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
