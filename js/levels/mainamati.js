@@ -132,7 +132,7 @@
   }
 
   window.LEVELS.mainamati = {
-    digs: 5,
+    digs: 3,
     build,
     setup,
     diggable: ['n'],

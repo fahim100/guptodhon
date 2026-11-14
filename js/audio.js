@@ -261,6 +261,15 @@ window.Sound = (function () {
       for (let i = 0; i < 14; i++) tone('sine', 2000 + Math.random() * 3000, t + 1.2 + Math.random() * 1.4, 0.002, 0.04, 0.25);
     },
     fail() { const t = now(); [7, 5, 3, 0].forEach((s, i) => tone('triangle', 220 * Math.pow(2, s / 12), t + i * 0.22, 0.01, 0.15, 0.45)); },
+    push() { // ভারী পাথর ঘষটে সরানো
+      const t = now(); const n = noise(t, 0.3), lp = filt('lowpass', 500, 2); lp.frequency.linearRampToValueAtTime(260, t + 0.28);
+      const g = env(t, 0.03, 0.45, 0.26, sfxBus); n.connect(lp); lp.connect(g);
+      const o = osc('sine', 70, t), g2 = env(t, 0.02, 0.2, 0.25, sfxBus); o.connect(g2); o.start(t); o.stop(t + 0.3);
+    },
+    rumble() { // পাথরের দরজা খোলা
+      const t = now(); const n = noise(t, 1.4), lp = filt('lowpass', 300, 1.5); const g = env(t, 0.2, 0.5, 1.2, sfxBus); n.connect(lp); lp.connect(g);
+      const o = osc('sawtooth', 45, t), lp2 = filt('lowpass', 150), g2 = env(t, 0.2, 0.25, 1.2, sfxBus); o.connect(lp2); lp2.connect(g2); o.start(t); o.stop(t + 1.5);
+    },
     roar() { // বাঘের গর্জন
       const t = now();
       const o = osc('sawtooth', 95, t); o.frequency.linearRampToValueAtTime(130, t + 0.25); o.frequency.exponentialRampToValueAtTime(55, t + 1.3);
@@ -315,6 +324,8 @@ window.Sound = (function () {
     teacher: { f0: 235, speed: 1.05, rate: 1, pitch: 1.3, glide: 0.06 },
     ranger: { f0: 140, speed: 1.05, rate: 1, pitch: 0.95, glide: 0.04 },
     mouyal: { f0: 118, speed: 0.95, rate: 0.9, pitch: 0.82, glide: 0.1 },
+    guide: { f0: 150, speed: 1.08, rate: 1, pitch: 1, glide: 0.05 },
+    nani: { f0: 205, speed: 0.85, rate: 0.85, pitch: 1.15, glide: -0.12 },
   };
   const FORMANT = { a: [730, 1090], e: [530, 1840], i: [300, 2290], o: [570, 840], u: [320, 870], O: [640, 1000] };
   const SIGN = { 'া': 'a', 'ি': 'i', 'ী': 'i', 'ু': 'u', 'ূ': 'u', 'ৃ': 'i', 'ে': 'e', 'ৈ': 'O', 'ো': 'o', 'ৌ': 'O' };

@@ -84,7 +84,7 @@
   const ask = (who, text, choices) => ({ who, text, choices });
 
   window.LEVELS.shatgombuj = {
-    digs: 5,
+    digs: 3,
     build,
     setup,
     coinName: 'সুলতানি আমলের মুদ্রা',
