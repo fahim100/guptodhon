@@ -129,7 +129,7 @@
   const bnum = (n) => BN_DIGITS(n);
 
   window.LEVELS.panam = {
-    digs: 5,
+    digs: 3,
     build,
     setup,
     speakers: {

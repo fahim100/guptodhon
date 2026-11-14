@@ -102,6 +102,28 @@
     </div>
     <button id="lv-act" class="lv-act">💬</button>
 
+    <button id="lv-mini" title="এলাকার ম্যাপ (N)" aria-label="এলাকার ম্যাপ খোলো">
+      <canvas id="lv-mini-cv"></canvas>
+      <span class="mini-tag">🗺 ম্যাপ</span>
+    </button>
+    <div id="lv-map" aria-hidden="true">
+      <div class="lv-map-card">
+        <div class="lv-map-head">
+          <b>🗺 এলাকার ম্যাপ</b>
+          <button id="lv-map-close" class="lv-btn" aria-label="বন্ধ করো">✕</button>
+        </div>
+        <canvas id="lv-map-cv"></canvas>
+        <div class="lv-map-legend">
+          <span><i class="lg-me"></i>তুমি</span>
+          <span><i class="lg-task"></i>এখনকার কাজ</span>
+          <span><i class="lg-bonus"></i>বোনাস</span>
+          <span><i class="lg-npc"></i>মানুষ</span>
+          <span><i class="lg-fog"></i>অদেখা জায়গা</span>
+          <em>চেনা জায়গায় চাপলে সেখানে হেঁটে যাবে · N চাপলে খোলে/বন্ধ হয়</em>
+        </div>
+      </div>
+    </div>
+
     <div id="lv-objectives" class="lv-card">
       <button id="lv-obj-toggle" class="lv-card-title">🗝 লক্ষ্য <span class="chev">▾</span></button>
       <ol id="lv-obj-list"></ol>
@@ -177,6 +199,7 @@
   <script src="js/levels/mainamati.js"></script>
   <script src="js/levels/shatgombuj.js"></script>
   <script src="js/levels/sundarban.js"></script>
+  <script src="js/levels/mahasthan.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

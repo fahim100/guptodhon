@@ -150,6 +150,7 @@ window.LevelGame = (function () {
       floatText(L.player.x, L.player.y, `${item.icon} ${item.name}`);
       sparkle(L.player.x, L.player.y, 18);
       Sound.sfx('pickup');
+      if (item.id === 'compass' && cluesLeft() > 0) setTimeout(() => L && toast('🧭 কম্পাসটা এখন <b>ঘুমিয়ে</b> আছে। সব কাজ আর সূত্র শেষ করলে তবেই জেগে উঠে গুপ্তধনের দিক বলবে।', 4200), 600);
     },
     has,
     take(id) { L.items = L.items.filter((i) => i.id !== id); renderInventory(); },
@@ -183,6 +184,8 @@ window.LevelGame = (function () {
     playerPos: () => playerPos(),
     hud(html) { const h = $('lv-custom'); h.innerHTML = html || ''; h.classList.toggle('show', !!html); },
     revealAll() { L.explored.fill(1); },
+    slide: (o) => openSlide(o),
+    idx: (x, y) => idx(x, y),
     floatText: (x, y, t, c) => floatText(x, y, t, c),
     flag: (k, v) => (v === undefined ? L.flags[k] : (L.flags[k] = v)),
     rand: Math.random,
@@ -223,8 +226,27 @@ window.LevelGame = (function () {
     const [ox, oy] = [o.x + (o.w - 1) / 2, o.y + o.h - 1];
     if (Math.abs(ox - p.x) > Math.abs(oy - p.y)) p.dir = ox > p.x ? 'right' : 'left';
     else p.dir = oy > p.y ? 'down' : 'up';
+    if (o.push) { // পাথর ঠেলা: খেলোয়াড় থেকে পাথরের দিকে
+      const dx = Math.sign(o.x - p.x), dy = Math.sign(o.y - p.y);
+      const ox0 = o.x, oy0 = o.y;
+      if ((dx === 0) !== (dy === 0) && tryPush(o, dx, dy)) p.path = [[ox0, oy0]];
+      return;
+    }
     L.busy = true;
     try { await L.def.interact[o.id](api, o); } finally { if (L && !L.dialog) L.busy = false; }
+  }
+
+  function tryPush(o, dx, dy) {
+    const nx = o.x + dx, ny = o.y + dy;
+    const blocked = !walkable(nx, ny) || (L.player.x === nx && L.player.y === ny);
+    if (blocked) { Sound.sfx('tick'); toast(L.def.pushBlocked || 'পাথরটা ওদিকে আর সরবে না।', 1600); return false; }
+    L.solid[idx(o.x, o.y)] = 0;
+    o.from = [o.x, o.y]; o.x = nx; o.y = ny; o.k = 0;
+    L.solid[idx(nx, ny)] = 1;
+    Sound.sfx('push');
+    puff(o.from[0] * T + T / 2, (o.from[1] + 1) * T - 6, 'rgba(190,170,140,0.6)');
+    if (L.def.onPush) L.def.onPush(api, o);
+    return true;
   }
 
   function goTo(x, y, target) {
@@ -244,14 +266,39 @@ window.LevelGame = (function () {
     if (path) p.run = path.length > 6; // দূরে গেলে দৌড়
   }
 
+  // কম্পাস শুধু তখনই কাজ করে যখন সব জরুরি সূত্র মেলানো হয়ে গেছে (খোঁড়া ছাড়া)
+  function cluesLeft() {
+    return L.def.objectives.filter((o) => !o.optional && o.id !== 'dig' && !L.done.has(o.id)).length;
+  }
+  function compassAwake() { return has('compass') && cluesLeft() === 0; }
+
   function heat() {
     const p = L.player, tr = L.treasure;
     const d = Math.hypot(p.x - tr.x, p.y - tr.y);
-    if (d <= 1.5) return { lv: 4, text: 'আগুন গরম!', d };
+    // ইচ্ছে করেই মোটা দাগের: "গরম" অনেকগুলো ঘর জুড়ে, ঠিক ঘরটা খুঁজতে খোঁড়ার পরের দিক-সংকেত লাগবে
     if (d <= 3) return { lv: 3, text: 'গরম', d };
     if (d <= 5) return { lv: 2, text: 'উষ্ণ', d };
     if (d <= 8) return { lv: 1, text: 'ঠান্ডা', d };
     return { lv: 0, text: 'বরফ ঠান্ডা', d };
+  }
+
+  // গর্তের পাশে মাটিতে আঁকা দিক-তীর
+  const ARROW_ANG = { '→': 0, '↘': 1, '↓': 2, '↙': 3, '←': 4, '↖': 5, '↑': 6, '↗': 7 };
+  function holeArrow(g, cx, cy, ar, k) {
+    g.save(); g.translate(cx, cy); g.rotate(ARROW_ANG[ar] * Math.PI / 4); g.scale(k, k);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const [col, lw] of [['rgba(40,20,5,0.85)', 7], ['#ffd36b', 3.5]]) {
+      g.strokeStyle = col; g.lineWidth = lw;
+      g.beginPath(); g.moveTo(10, 0); g.lineTo(26, 0); g.moveTo(20, -6); g.lineTo(27, 0); g.lineTo(20, 6); g.stroke();
+    }
+    g.restore();
+  }
+
+  // খোঁড়া জায়গা থেকে ধন কোন দিকে (উপর = উত্তর)
+  function treasureDir(x, y) {
+    const a = Math.atan2(L.treasure.y - y, L.treasure.x - x);
+    const k = (Math.round(a / (Math.PI / 4)) + 8) % 8;
+    return [['পূর্ব', '→'], ['দক্ষিণ-পূর্ব', '↘'], ['দক্ষিণ', '↓'], ['দক্ষিণ-পশ্চিম', '↙'], ['পশ্চিম', '←'], ['উত্তর-পশ্চিম', '↖'], ['উত্তর', '↑'], ['উত্তর-পূর্ব', '↗']][k];
   }
 
   async function dig() {
@@ -277,9 +324,14 @@ window.LevelGame = (function () {
     if (p.x === L.treasure.x && p.y === L.treasure.y) { win(); return; }
     const misses = ['শুধু মাটি আর পুরনো ইটের টুকরো…', 'একটা কেঁচো ছাড়া কিছু নেই!', 'মাটি শক্ত, কিন্তু ধন নেই।', 'ভাঙা মাটির হাঁড়ির টুকরো… ধন নয়।'];
     let msg = misses[(Math.random() * misses.length) | 0];
-    if (has('compass')) msg += ` কম্পাস বলছে: <b>${heat().text}</b>`;
-    if (L.digs <= 0) { toast(msg); setTimeout(lose, 1200); return; }
-    toast(msg + ` · আর <b>${bn(L.digs)}</b> বার খোঁড়া যাবে`);
+    if (compassAwake()) {
+      const [dn, ar] = treasureDir(p.x, p.y);
+      L.holes[L.holes.length - 1].dir = ar;
+      msg += ` 🧭 কম্পাসের কাঁটা ঘুরে গেল: ধন এখান থেকে <b>${ar} ${dn}</b> দিকে।`;
+      floatText(p.x, p.y - 0.6, `${ar} ${dn}`, '#ffd36b');
+    }
+    if (L.digs <= 0) { toast(msg, 4000); setTimeout(lose, 1600); return; }
+    toast(msg + ` · আর <b>${bn(L.digs)}</b> বার খোঁড়া যাবে`, 5200);
     L.busy = false;
   }
 
@@ -330,6 +382,10 @@ window.LevelGame = (function () {
         p.dir = k;
         const n = [p.x + DIRS[k][0], p.y + DIRS[k][1]];
         if (walkable(n[0], n[1])) next = n;
+        else {
+          const blk = L.objects.find((o) => o.push && !o.hidden && o.x === n[0] && o.y === n[1]);
+          if (blk && (blk.k === undefined || blk.k >= 1) && tryPush(blk, DIRS[k][0], DIRS[k][1])) next = n;
+        }
       } else if (p.path.length) next = p.path.shift();
       if (next) {
         const dx = next[0] - p.x, dy = next[1] - p.y;
@@ -363,6 +419,7 @@ window.LevelGame = (function () {
       else { pt.vy += (pt.grav || 160) * dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; }
     }
     L.particles = L.particles.filter((pt) => pt.life > 0);
+    for (const o of L.objects) if (o.push && o.k !== undefined && o.k < 1) o.k = Math.min(1, o.k + dt / 0.16);
     if (L.circle) L.circle.t += dt;
     if (L.chest) L.chest.t += dt;
     if (L.marker) L.marker.t += dt;
@@ -535,6 +592,7 @@ window.LevelGame = (function () {
       ctx.fillStyle = '#7a5232'; ctx.beginPath(); ctx.ellipse(cx + 8, cy + 6, 9, 5, 0, 0, 7); ctx.fill();
       ctx.fillStyle = '#2b1a0e'; ctx.beginPath(); ctx.ellipse(cx, cy, 13, 8, 0, 0, 7); ctx.fill();
       ctx.fillStyle = '#1a0f07'; ctx.beginPath(); ctx.ellipse(cx, cy + 1.5, 9, 5, 0, 0, 7); ctx.fill();
+      if (h.dir) holeArrow(ctx, cx, cy - 2, h.dir, 1);
     }
 
     // লাল কালির বৃত্ত
@@ -739,7 +797,7 @@ window.LevelGame = (function () {
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000 || 0);
     last = now;
-    if (L) { update(dt); draw(); }
+    if (L) { update(dt); draw(); drawMinimap(); }
     raf = requestAnimationFrame(frame);
   }
 
@@ -756,6 +814,7 @@ window.LevelGame = (function () {
     if (!L || !root.classList.contains('show')) return;
     if ($('lv-modal').classList.contains('show') || document.getElementById('settings').classList.contains('show')) return;
     const d = KEYMAP[e.code];
+    if (mini.open && e.type === 'keydown' && e.code !== 'KeyN' && e.code !== 'Tab' && e.code !== 'Escape') return;
     if (e.type === 'keydown') {
       if (L.dialog && L.dialog.choicesShown) {
         const n = parseInt(e.key, 10);
@@ -769,6 +828,8 @@ window.LevelGame = (function () {
         action();
       }
       if (e.code === 'KeyF') dig();
+      if (e.code === 'KeyN' || e.code === 'Tab') { e.preventDefault(); if (mini.open) closeMap(); else openMap(); }
+      if (e.code === 'Escape' && mini.open) closeMap();
     } else if (d) held = held.filter((k) => k !== d);
   }
 
@@ -818,6 +879,17 @@ window.LevelGame = (function () {
       if (el.className !== 'off') { el.className = 'off'; $('lv-heat').textContent = 'কম্পাস নেই'; el.querySelector('.needle').style.transform = ''; }
       return;
     }
+    if (!compassAwake()) {
+      const n = cluesLeft();
+      const txt = `ঘুমন্ত · আর ${bn(n)}টি কাজ`;
+      if (el.className !== 'sleep' || $('lv-heat').textContent !== txt) {
+        el.className = 'sleep'; $('lv-heat').textContent = txt; el.querySelector('.needle').style.transform = '';
+      }
+      L._awake = false;
+      return;
+    }
+    if (L._awake === false) { toast('🧭 সব সূত্র মিলেছে! কম্পাস এবার <b>জেগে উঠেছে</b>। গুপ্তধনের কাছে গেলে গরম হবে।'); Sound.sfx('star'); }
+    L._awake = true;
     const h = heat();
     if (L._heat !== undefined && h.lv > L._heat && h.lv >= 3) Sound.sfx('tick');
     L._heat = h.lv;
@@ -1169,6 +1241,50 @@ window.LevelGame = (function () {
     });
   }
 
+  // টুকরো সরানোর ধাঁধা (৩×৩, একটা ঘর ফাঁকা)
+  function openSlide(o) {
+    return new Promise((res) => {
+      const N = 3, img = Art[o.image](300).toDataURL();
+      let st = [...Array(N * N).keys()]; // st[pos] = টুকরোর নম্বর; ৮ = ফাঁকা
+      const blank = () => st.indexOf(N * N - 1);
+      const adj = (a, b) => Math.abs((a % N) - (b % N)) + Math.abs(((a / N) | 0) - ((b / N) | 0)) === 1;
+      let prev = -1;
+      for (let m = 0; m < 80; m++) { // সমাধানযোগ্য এলোমেলো
+        const b = blank(); const opts = st.map((_, i) => i).filter((i) => adj(i, b) && i !== prev);
+        const c = opts[(Math.random() * opts.length) | 0]; [st[b], st[c]] = [st[c], st[b]]; prev = b;
+      }
+      if (st.every((v, i) => v === i)) { const b = blank(); const c = st.findIndex((_, i) => adj(i, b)); [st[b], st[c]] = [st[c], st[b]]; }
+      let moves = 0, done = false;
+      const render = () => {
+        $('slide-grid').innerHTML = st.map((v, pos) => v === N * N - 1 && !done ? `<div class="slide-cell blank"></div>`
+          : `<button class="slide-cell" data-act="sl" data-p="${pos}" style="background-image:url(${img});background-position:${(v % N) * 50}% ${((v / N) | 0) * 50}%"><i>${bn(v + 1)}</i></button>`).join('');
+        $('slide-moves').textContent = bn(moves);
+      };
+      openModal(`
+        <div class="lv-modal-kicker">${o.kicker || ''}</div>
+        <h3>${o.title}</h3>
+        <p class="lock-hint">${o.hint || ''}</p>
+        <div class="slide-grid" id="slide-grid"></div>
+        <div id="lock-msg"><span>চাল: <b id="slide-moves">০</b></span></div>
+        <div class="lv-modal-actions"><button class="btn-ghost" data-act="close">পরে করব</button></div>`,
+      (act, el) => {
+        if (act === 'close') { closeModal(); res(false); return; }
+        if (act !== 'sl' || done) return;
+        const p = +el.dataset.p, b = blank();
+        if (!adj(p, b)) { Sound.sfx('tick'); return; }
+        [st[b], st[p]] = [st[p], st[b]]; moves++; Sound.sfx('rotate');
+        if (st.every((v, i) => v === i)) {
+          done = true; render();
+          $('slide-grid').classList.add('solved');
+          $('lock-msg').innerHTML = `<span class="ok">শিলালিপি জোড়া লেগেছে, ${bn(moves)} চালে!</span>`;
+          Sound.sfx('right');
+          setTimeout(() => { closeModal(); res(true); }, 1500);
+        } else render();
+      });
+      render();
+    });
+  }
+
   function showResult() {
     if (!L) return;
     const used = L.digsMax - L.digs;
@@ -1216,6 +1332,7 @@ window.LevelGame = (function () {
     cb = callbacks || {};
     current = site;
     const def = LEVELS[site.id];
+    closeMap();
     L = build(def, site);
     def.setup(L, api);
     L.coinTotal = L.objects.filter((o) => o.kind === 'coin').length;
@@ -1253,7 +1370,7 @@ window.LevelGame = (function () {
     Sound.voice.stop();
     Sound.ambient(false);
     Sound.music('map');
-    L = null; held = [];
+    L = null; held = []; closeMap();
   }
   function exit() { finish(); cb.onExit && cb.onExit(); }
 
@@ -1302,6 +1419,173 @@ window.LevelGame = (function () {
   });
   $('lv-obj-toggle').addEventListener('click', () => { $('lv-objectives').classList.toggle('collapsed'); Sound.sfx('click'); });
 
+  // ---------- মিনিম্যাপ ----------
+  const MS = 10; // মিনিম্যাপের ভিত্তি ছবিতে এক ঘর কত পিক্সেল
+  const PLACE_NAMES = {
+    tomb: 'মাজার', mosque: 'মসজিদ', diwan: 'দিওয়ান-ই-আম', hut: 'ঘর', shrine: 'মাজার', shatgombuj: 'ষাট গম্বুজ মসজিদ',
+    singledome: 'এক গম্বুজ মসজিদ', tower: 'ওয়াচটাওয়ার', panam: 'বাড়ি', panamBack: 'বাড়ি', nachghar: 'নাচঘর',
+  };
+  const BASE_KINDS = new Set(['building', 'tree', 'stele', 'gate', 'prop', 'decor']);
+  const mini = { cv: $('lv-mini-cv'), big: $('lv-map-cv'), open: false, sig: '' };
+
+  function mapBase() {
+    const sig = L.objects.filter((o) => o.hidden).length + ':' + L.C;
+    if (L.mapBase && mini.sig === sig) return L.mapBase;
+    mini.sig = sig;
+    const c = Art.canvas(L.C * MS, L.R * MS), g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(L.ground, 0, 0, L.C * T, L.R * T, 0, 0, L.C * MS, L.R * MS);
+    const real = ctx;
+    const list = L.objects.filter((o) => !o.hidden && BASE_KINDS.has(o.kind) && !o.push).sort((a, b) => (a.y + a.h) - (b.y + b.h));
+    g.save(); g.scale(MS / T, MS / T);
+    for (const o of list) {
+      const px = o.x * T, py = o.y * T;
+      try {
+        if (o.draw) o.draw(g, 0, T, o);
+        else if (o.kind === 'building') g.drawImage(o.sprite.img, px + o.sprite.ox, py + o.sprite.oy);
+        else if (o.kind === 'tree' || o.kind === 'stele') g.drawImage(o.sprite.img, px + T / 2 - o.sprite.ax, py + T - o.sprite.ay + 4);
+        else if (o.kind === 'gate') g.drawImage(o.sprite.img, px, py + T - o.sprite.ay + 6);
+      } catch (e) { /* কোনো আঁকা না হলে বাদ */ }
+    }
+    g.restore();
+    // হালকা পুরনো কাগজের রং
+    g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(255,236,200,0.9)'; g.fillRect(0, 0, c.width, c.height);
+    g.globalCompositeOperation = 'source-over';
+    void real;
+    L.mapBase = c;
+    return c;
+  }
+
+  function mapFog() {
+    if (!L.mapFog) { L.mapFog = Art.canvas(L.C, L.R); L.mapFogImg = L.mapFog.getContext('2d').createImageData(L.C, L.R); L.mapFogN = -1; }
+    let n = 0; for (let i = 0; i < L.explored.length; i++) n += L.explored[i];
+    if (n !== L.mapFogN) {
+      L.mapFogN = n;
+      const d = L.mapFogImg.data;
+      for (let i = 0; i < L.explored.length; i++) { d[i * 4] = 22; d[i * 4 + 1] = 16; d[i * 4 + 2] = 9; d[i * 4 + 3] = L.explored[i] ? 0 : 205; }
+      L.mapFog.getContext('2d').putImageData(L.mapFogImg, 0, 0);
+    }
+    return L.mapFog;
+  }
+
+  function placeName(o) {
+    if (o.label) return o.label;
+    if (o.kind === 'building' && PLACE_NAMES[o.style]) return PLACE_NAMES[o.style];
+    if (o.kind === 'stele') return 'শিলাফলক';
+    if (o.kind === 'npc') { const s = SPEAKERS[o.speaker || o.id] || (L.def.speakers || {})[o.speaker || o.id]; return s && s.name ? s.name.split(' ').slice(-2).join(' ') : ''; }
+    return o.prompt || '';
+  }
+
+  // cv-তে পুরো ম্যাপ আঁকে; big হলে নামও লেখে। ফেরত দেয় ম্যাপের অবস্থান (ক্লিকের জন্য)
+  function drawMap(cv, big) {
+    const r = cv.getBoundingClientRect();
+    if (r.width < 10) return null;
+    const pd = Math.min(2, devicePixelRatio || 1);
+    const w = Math.round(r.width * pd), h = Math.round(r.height * pd);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const g = cv.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#16100a'; g.fillRect(0, 0, w, h);
+    const pad = (big ? 14 : 4) * pd;
+    const s = Math.min((w - pad * 2) / L.C, (h - pad * 2) / L.R);
+    const ox = (w - L.C * s) / 2, oy = (h - L.R * s) / 2;
+    g.setTransform(1, 0, 0, 1, ox, oy);
+    g.imageSmoothingEnabled = true;
+    g.drawImage(mapBase(), 0, 0, L.C * s, L.R * s);
+    const ex = (x, y) => L.explored[Math.max(0, Math.min(L.R - 1, y)) * L.C + Math.max(0, Math.min(L.C - 1, x))];
+
+    // বন্ধ দরজা আর ঠেলার পাথর
+    for (const o of L.objects) {
+      if (o.hidden || !ex(o.x, o.y)) continue;
+      if (o.kind === 'door' && !o.open) { g.fillStyle = o.lockColor || '#8a5a2a'; g.fillRect(o.x * s, o.y * s + s * 0.2, o.w * s, s * 0.6); }
+      if (o.push) { g.fillStyle = '#6d6a62'; g.fillRect(o.x * s + s * 0.12, o.y * s + s * 0.12, s * 0.76, s * 0.76); }
+    }
+    // খোঁড়া গর্ত
+    g.strokeStyle = 'rgba(70,35,10,0.9)'; g.lineWidth = Math.max(1, s * 0.12);
+    for (const hl of L.holes) { const cx = (hl.x + 0.5) * s, cy = (hl.y + 0.5) * s, k = s * 0.22; g.beginPath(); g.moveTo(cx - k, cy - k); g.lineTo(cx + k, cy + k); g.moveTo(cx + k, cy - k); g.lineTo(cx - k, cy + k); g.stroke(); if (big && hl.dir) { holeArrow(g, cx, cy, hl.dir, s / 30); g.strokeStyle = 'rgba(70,35,10,0.9)'; g.lineWidth = Math.max(1, s * 0.12); } }
+
+    // কুয়াশা
+    g.imageSmoothingEnabled = true;
+    g.drawImage(mapFog(), 0, 0, L.C * s, L.R * s);
+
+    // লাল বৃত্ত
+    if (L.circle) {
+      const c = L.circle;
+      g.save(); g.strokeStyle = '#c0301c'; g.lineWidth = Math.max(1.5, s * 0.22); g.setLineDash([s * 0.6, s * 0.4]);
+      g.beginPath(); g.arc((c.x + 0.5) * s, (c.y + 0.5) * s, c.r * s, 0, 7); g.stroke(); g.restore();
+    }
+
+    // কাজের চিহ্ন
+    const labels = [];
+    const pulse = 1 + Math.sin(L.t * 5) * 0.18;
+    for (const o of L.objects) {
+      if (o.hidden || !o.interact || o.push || o.kind === 'animal') continue;
+      const mx = Math.min(L.C - 1, o.x + ((o.w / 2) | 0)), my = o.y;
+      const seen = ex(mx, my) || ex(mx, o.y + o.h - 1);
+      // বড় দালান দূর থেকেও চেনা যায়, তাই কুয়াশার ভেতরেও নাম দেখায়; বাকিগুলো দেখা হলে তবেই
+      if (!seen && o.kind !== 'building') continue;
+      const cx = (o.x + o.w / 2) * s, cy = (o.y + (o.kind === 'building' ? o.h / 2 : 0.5)) * s;
+      const task = o.bubble && o.bubble(api);
+      if (task) {
+        const rr = Math.max(big ? 7 * pd : 3.2 * pd, s * 0.42) * pulse;
+        g.fillStyle = o.optional ? '#8fd0ff' : '#f2c14e'; g.strokeStyle = o.optional ? '#123a5a' : '#4a2a05'; g.lineWidth = Math.max(1, pd * (big ? 1.6 : 1));
+        g.beginPath(); g.arc(cx, cy, rr, 0, 7); g.fill(); g.stroke();
+        if (big) { g.fillStyle = o.optional ? '#123a5a' : '#4a2a05'; g.font = `bold ${Math.round(rr * 1.4)}px Hind Siliguri, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', cx, cy + 1); }
+      } else if (o.kind === 'npc') {
+        g.fillStyle = '#fff4d4'; g.strokeStyle = '#3a2a1a'; g.lineWidth = pd;
+        g.beginPath(); g.arc(cx, cy, Math.max(2 * pd, s * 0.26), 0, 7); g.fill(); g.stroke();
+      }
+      if (big) { const nm = placeName(o); if (nm) labels.push({ x: cx, y: cy, nm, task, opt: o.optional, dim: !seen }); }
+    }
+    if (big) {
+      g.font = `600 ${Math.round(12 * pd)}px Hind Siliguri, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'top';
+      g.lineJoin = 'round';
+      for (const lb of labels) {
+        const ty = lb.y + Math.max(9 * pd, s * 0.55);
+        g.lineWidth = 3.5 * pd; g.strokeStyle = 'rgba(20,12,5,0.9)'; g.strokeText(lb.nm, lb.x, ty);
+        g.globalAlpha = lb.dim ? 0.6 : 1;
+        g.fillStyle = lb.task ? (lb.opt ? '#bfe6ff' : '#ffe39a') : '#f3e2b5'; g.fillText(lb.nm, lb.x, ty);
+        g.globalAlpha = 1;
+      }
+    }
+
+    // খেলোয়াড়
+    const [px, py] = playerPos();
+    const cx = (px + 0.5) * s, cy = (py + 0.5) * s, rr = Math.max(big ? 6 * pd : 3.5 * pd, s * 0.4);
+    g.fillStyle = `rgba(255,90,60,${0.25 + Math.sin(L.t * 4) * 0.12})`; g.beginPath(); g.arc(cx, cy, rr * 2.2, 0, 7); g.fill();
+    const ang = { up: -Math.PI / 2, down: Math.PI / 2, left: Math.PI, right: 0 }[L.player.dir] || 0;
+    g.save(); g.translate(cx, cy); g.rotate(ang);
+    g.fillStyle = '#ff5a3c'; g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.2, pd * 1.4);
+    g.beginPath(); g.moveTo(rr * 1.3, 0); g.lineTo(-rr * 0.9, -rr * 0.9); g.lineTo(-rr * 0.4, 0); g.lineTo(-rr * 0.9, rr * 0.9); g.closePath(); g.fill(); g.stroke();
+    g.restore();
+    return { ox: ox / pd, oy: oy / pd, s: s / pd, rect: r };
+  }
+
+  function drawMinimap() {
+    if (!L) return;
+    drawMap(mini.cv, false);
+    if (mini.open && (L.dialog || L.mode !== 'play' || $('lv-modal').classList.contains('show'))) closeMap();
+    if (mini.open) mini.layout = drawMap(mini.big, true);
+  }
+  function openMap() {
+    if (!L || L.mode !== 'play' || L.dialog) return;
+    mini.open = true; mini.big.style.aspectRatio = `${L.C} / ${L.R}`; $('lv-map').classList.add('show'); held = []; Sound.sfx('page');
+    requestAnimationFrame(drawMinimap);
+  }
+  function closeMap() { mini.open = false; $('lv-map').classList.remove('show'); }
+  $('lv-mini').addEventListener('click', () => { if (mini.open) closeMap(); else openMap(); });
+  $('lv-map-close').addEventListener('click', (e) => { e.stopPropagation(); closeMap(); Sound.sfx('click'); });
+  $('lv-map').addEventListener('click', (e) => { if (e.target.id === 'lv-map') closeMap(); });
+  // বড় ম্যাপে চেনা জায়গায় চাপলে সেখানে হেঁটে যায়
+  mini.big.addEventListener('click', (e) => {
+    const m = mini.layout; if (!L || !m || L.busy) return;
+    const tx = Math.floor((e.clientX - m.rect.left - m.ox) / m.s), ty = Math.floor((e.clientY - m.rect.top - m.oy) / m.s);
+    if (tx < 0 || ty < 0 || tx >= L.C || ty >= L.R || !L.explored[ty * L.C + tx]) { toast('ওই জায়গা এখনো ঘুরে দেখা হয়নি।'); return; }
+    const o = objectAt(tx, ty);
+    closeMap();
+    if (o && o.interact) goTo(tx, ty, o); else goTo(tx, ty);
+  });
+
   // _debug কেবল পরীক্ষার জন্য
-  return { start, has: (id) => !!LEVELS[id], _debug: () => ({ L, api, goTo, dig, advanceDialog, pickChoice, objectAt, tick: (dt) => { update(dt); draw(); } }) };
+  return { start, has: (id) => !!LEVELS[id], _debug: () => ({ L, api, goTo, dig, advanceDialog, pickChoice, objectAt, tick: (dt) => { update(dt); draw(); drawMinimap(); }, openMap, closeMap }) };
 })();

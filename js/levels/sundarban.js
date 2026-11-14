@@ -100,7 +100,7 @@
   const bn = (n) => BN_DIGITS(n);
 
   window.LEVELS.sundarban = {
-    digs: 5,
+    digs: 3,
     build,
     setup,
     diggable: ['u'],

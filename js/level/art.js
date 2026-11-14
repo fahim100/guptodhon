@@ -251,6 +251,16 @@ window.Art = (function () {
     for (let i = 0; i < 2; i++) { const px = x + r() * T, py = y + r() * T; g.beginPath(); g.moveTo(px, py); g.lineTo(px + 3, py - 2); g.moveTo(px, py); g.lineTo(px - 3, py - 2); g.moveTo(px, py); g.lineTo(px, py - 4); g.stroke(); }
   }
 
+  // খোদাই করা পাথরের চিহ্ন (পাথর বসানোর জায়গা)
+  function plate(g, x, y, r, cx, cy, at) {
+    ruinFloor(g, x, y, r, cx, cy, at);
+    const m = T / 2;
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.arc(x + m, y + m + 1, 17, 0, 7); g.fill();
+    g.fillStyle = '#b9b2a2'; g.beginPath(); g.arc(x + m, y + m, 16, 0, 7); g.fill();
+    g.strokeStyle = '#6e665a'; g.lineWidth = 2; g.beginPath(); g.arc(x + m, y + m, 11, 0, 7); g.stroke();
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; g.beginPath(); g.moveTo(x + m + Math.cos(a) * 4, y + m + Math.sin(a) * 4); g.lineTo(x + m + Math.cos(a) * 10, y + m + Math.sin(a) * 10); g.stroke(); }
+  }
+
   // দিঘির পানিতে পা রাখার পাথর
   function stone(g, x, y, r, cx, cy, at) {
     water(g, x, y, r, cx, cy, (a, b) => (at(a, b) === 's' ? 'w' : at(a, b)));
@@ -266,7 +276,7 @@ window.Art = (function () {
     const g = c.getContext('2d');
     const at = (x, y) => (x < 0 || y < 0 || x >= C || y >= R ? 'X' : tiles[y][x]);
     const draw = { g: grass, p: brick, G: brick, f: flowerBed, w: water, c: channel, '#': wall, k: canal, b: bridge,
-      s: stone, u: mangroveMud, h: golpata, z: mudflat, l: laterite, m: ruinFloor, n: (g2, x, y, r, cx, cy, a) => ruinFloor(g2, x, y, r, cx, cy, a, true), r: ruinWall };
+      q: plate, s: stone, u: mangroveMud, h: golpata, z: mudflat, l: laterite, m: ruinFloor, n: (g2, x, y, r, cx, cy, a) => ruinFloor(g2, x, y, r, cx, cy, a, true), r: ruinWall };
     for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) {
       const t = at(x, y);
       (draw[t] || grass)(g, x * T, y * T, rng(x * 7919 + y * 104729 + 13), x, y, at);
@@ -1214,6 +1224,84 @@ window.Art = (function () {
     for (let i = 0; i < 4; i++) { const ph = (t * 0.6 + i / 4) % 1; g.fillStyle = `rgba(220,220,220,${0.4 * (1 - ph)})`; g.beginPath(); g.arc(x + 6 + Math.sin(ph * 6 + i) * 4, y - 14 - ph * 30, 3 + ph * 7, 0, 7); g.fill(); }
   }
 
+  // ঠেলার মতো চারকোনা পাথর
+  function stoneBlock(g, x, y, onPlate) {
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x + 6, y + 10, T - 6, T - 8);
+    const gr = g.createLinearGradient(x, y, x + T, y + T);
+    gr.addColorStop(0, onPlate ? '#d9cfb0' : '#bdb5a3'); gr.addColorStop(1, onPlate ? '#a8996e' : '#8a8274');
+    g.fillStyle = gr; rrect(g, x + 3, y - 6, T - 6, T - 4, 5); g.fill();
+    g.fillStyle = onPlate ? '#8a7b52' : '#6e675b'; g.fillRect(x + 3, y + T - 18, T - 6, 8);
+    g.strokeStyle = 'rgba(60,55,45,0.5)'; g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(x + 10, y + 2); g.lineTo(x + 18, y + 12); g.lineTo(x + 14, y + 20); g.moveTo(x + T - 12, y); g.lineTo(x + T - 18, y + 10); g.stroke();
+    if (onPlate) { g.strokeStyle = 'rgba(242,193,78,0.9)'; g.lineWidth = 2.5; rrect(g, x + 3, y - 6, T - 6, T - 4, 5); g.stroke(); }
+  }
+  // খোদার পাথর: বিশাল কালো পাথরের ফলক
+  function bigSlab(g, x, y) {
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(x + T / 2 + 6, y + T - 4, T * 0.6, 10, 0, 0, 7); g.fill();
+    const gr = g.createLinearGradient(x, y, x + T, y);
+    gr.addColorStop(0, '#5a5652'); gr.addColorStop(1, '#2e2b28');
+    g.fillStyle = gr; rrect(g, x - 4, y + 6, T + 8, T - 12, 6); g.fill();
+    g.fillStyle = '#6e6964'; rrect(g, x - 4, y + 2, T + 8, 12, 5); g.fill();
+    g.fillStyle = 'rgba(242,193,78,0.6)'; for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(x + 4 + i * 10, y + 8, 1.4, 0, 7); g.fill(); }
+    g.fillStyle = '#d8d0b8'; g.beginPath(); g.arc(x + T / 2, y + 7, 3, 0, 7); g.fill(); // ফুল-প্রদীপের দাগ
+  }
+  // পাথরের দরজা (খুললে নিচে নেমে যায়)
+  function stoneDoor(g, x, y, open, t) {
+    g.fillStyle = '#7a3a24'; g.fillRect(x - 4, y - T * 0.5, 8, T * 1.5); g.fillRect(x + T - 4, y - T * 0.5, 8, T * 1.5);
+    g.fillRect(x - 4, y - T * 0.6, T + 8, 10);
+    if (open) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x + 4, y + T - 10, T - 8, 6); return; }
+    const gr = g.createLinearGradient(x, 0, x + T, 0);
+    gr.addColorStop(0, '#9e978a'); gr.addColorStop(0.5, '#bdb5a3'); gr.addColorStop(1, '#7d766a');
+    g.fillStyle = gr; g.fillRect(x + 4, y - T * 0.45, T - 8, T * 1.4);
+    g.strokeStyle = 'rgba(60,55,45,0.6)'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(x + T / 2, y + T * 0.2, 9, 0, 7); g.stroke();
+    for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(x + T / 2 - 12 + i * 12, y + T * 0.7, 3, 0, 7); g.stroke(); }
+  }
+  // জিয়ৎ কুণ্ড (প্রাচীন কূপ)
+  function well(g, x, y, t) {
+    const cx = x + T / 2, cy = y + T / 2;
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(cx + 4, cy + 8, 26, 12, 0, 0, 7); g.fill();
+    g.fillStyle = '#9c5238'; g.beginPath(); g.ellipse(cx, cy + 4, 26, 13, 0, 0, 7); g.fill();
+    g.fillStyle = '#b8684a'; g.beginPath(); g.ellipse(cx, cy, 26, 13, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(80,30,15,0.4)'; g.lineWidth = 1; for (let a = 0; a < 6.28; a += 0.4) { g.beginPath(); g.moveTo(cx + Math.cos(a) * 18, cy + Math.sin(a) * 9); g.lineTo(cx + Math.cos(a) * 26, cy + Math.sin(a) * 13); g.stroke(); }
+    g.fillStyle = '#1e3a40'; g.beginPath(); g.ellipse(cx, cy, 17, 8.5, 0, 0, 7); g.fill();
+    g.fillStyle = `rgba(160,220,230,${0.25 + Math.sin(t * 2) * 0.1})`; g.beginPath(); g.ellipse(cx - 4, cy - 2, 7, 2.5, 0, 0, 7); g.fill();
+  }
+  // মহাস্থান ব্রাহ্মী শিলালিপির প্রতিরূপ (টুকরো-ধাঁধার ছবি)
+  function brahmiPlaque(size) {
+    const c = canvas(size, size), g = c.getContext('2d'), r = rng(42);
+    g.fillStyle = '#3a2a1a'; g.fillRect(0, 0, size, size);
+    const gr = g.createLinearGradient(0, 0, size, size);
+    gr.addColorStop(0, '#d8d0bc'); gr.addColorStop(1, '#a89e88');
+    g.fillStyle = gr; g.beginPath();
+    g.moveTo(size * 0.06, size * 0.1); g.lineTo(size * 0.9, size * 0.05); g.lineTo(size * 0.95, size * 0.55); g.lineTo(size * 0.88, size * 0.93); g.lineTo(size * 0.12, size * 0.95); g.lineTo(size * 0.04, size * 0.6); g.closePath(); g.fill();
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(90,80,60,${r() * 0.15})`; g.beginPath(); g.arc(r() * size, r() * size, 2 + r() * 10, 0, 7); g.fill(); }
+    // সাত সারি খোদাই করা অক্ষর (ব্রাহ্মীর আদলে)
+    g.strokeStyle = '#4a3f30'; g.lineWidth = size * 0.009; g.lineCap = 'round';
+    for (let row = 0; row < 7; row++) {
+      const yy = size * (0.17 + row * 0.11);
+      for (let k = 0; k < 9; k++) {
+        const xx = size * (0.12 + k * 0.088), h = size * 0.06;
+        g.beginPath();
+        const sh = Math.floor(r() * 9);
+        if (sh === 0) { g.moveTo(xx, yy); g.lineTo(xx, yy + h); g.moveTo(xx - h * 0.3, yy + h * 0.5); g.lineTo(xx + h * 0.3, yy + h * 0.5); }
+        else if (sh === 1) { g.arc(xx, yy + h * 0.5, h * 0.35, 0, 7); }
+        else if (sh === 2) { g.moveTo(xx - h * 0.3, yy); g.lineTo(xx, yy + h); g.lineTo(xx + h * 0.3, yy); }
+        else if (sh === 3) { g.moveTo(xx - h * 0.3, yy + h); g.lineTo(xx - h * 0.3, yy); g.lineTo(xx + h * 0.3, yy); g.lineTo(xx + h * 0.3, yy + h); }
+        else if (sh === 4) { g.moveTo(xx, yy); g.lineTo(xx, yy + h); g.moveTo(xx, yy + h * 0.3); g.lineTo(xx + h * 0.35, yy); }
+        else if (sh === 5) { g.moveTo(xx - h * 0.3, yy + h * 0.5); g.lineTo(xx + h * 0.3, yy + h * 0.5); g.moveTo(xx, yy); g.lineTo(xx, yy + h * 0.5); }
+        else if (sh === 6) { g.moveTo(xx - h * 0.3, yy); g.lineTo(xx + h * 0.3, yy); g.lineTo(xx - h * 0.3, yy + h); g.lineTo(xx + h * 0.3, yy + h); }
+        else if (sh === 7) { g.arc(xx, yy + h * 0.3, h * 0.25, Math.PI, 0); g.moveTo(xx, yy + h * 0.3); g.lineTo(xx, yy + h); }
+        else { g.moveTo(xx - h * 0.3, yy + h); g.quadraticCurveTo(xx, yy - h * 0.2, xx + h * 0.3, yy + h); g.moveTo(xx - h * 0.15, yy + h * 0.65); g.lineTo(xx + h * 0.15, yy + h * 0.65); }
+        g.stroke();
+      }
+    }
+    // ফাটল
+    g.strokeStyle = 'rgba(40,30,20,0.6)'; g.lineWidth = size * 0.006;
+    g.beginPath(); g.moveTo(size * 0.6, size * 0.06); g.lineTo(size * 0.55, size * 0.3); g.lineTo(size * 0.62, size * 0.5); g.lineTo(size * 0.58, size * 0.75); g.stroke();
+    return c;
+  }
+
   // কুমির: surf 0 = ডুবে আছে (শুধু চোখ), 1 = ভেসে উঠেছে
   function croc(g, x, y, ang, surf, t) {
     g.save(); g.translate(x, y); g.rotate(ang);
@@ -1250,5 +1338,5 @@ window.Art = (function () {
     return c;
   }
 
-  return { T, rng, canvas, rrect, ground, treeSprite, building, gateSprite, stele, explorer, caretaker, kid, pigeon, butterfly, medallion, cloud, person, boat, alleyGate, loom, kantha, tent, trench, findsTable, cellMark, seal, croc, tiger, deer, monkey, kingfisher, crab, smoker };
+  return { T, rng, canvas, rrect, ground, treeSprite, building, gateSprite, stele, explorer, caretaker, kid, pigeon, butterfly, medallion, cloud, person, boat, alleyGate, loom, kantha, tent, trench, findsTable, cellMark, seal, croc, tiger, deer, monkey, kingfisher, crab, smoker, stoneBlock, bigSlab, stoneDoor, well, brahmiPlaque };
 })();
